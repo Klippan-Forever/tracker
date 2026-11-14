@@ -1,0 +1,1348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Klippan Forever Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0906; --text: #efe6d2; --muted: #a8987a; --faint: #6f6450;
+    --gold: #c9a24a; --gold-bright: #f4d27a; --gold-dark: #6e5320;
+    --panel-top: #1d1711; --panel-bottom: #120e0a; --inset: #0a0806;
+    --danger: #ff6b5b; --good: #6fdc5a;
+    --ahead: #ffb35c; --behind: #7fb4ff;
+    --alliance: #5b9dff; --horde: #ff5a4a;
+    --display: "Cinzel", "Trajan Pro", Georgia, serif;
+    --body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text); font: 15px/1.45 var(--body);
+    background:
+      radial-gradient(ellipse 90% 50% at 50% -5%, rgba(201, 162, 74, .18), transparent 70%),
+      radial-gradient(ellipse 120% 80% at 50% 120%, rgba(110, 40, 15, .25), transparent 60%),
+      var(--bg);
+  }
+  main { max-width: 1200px; margin: 0 auto; padding: 36px 16px 48px; }
+
+  /* Header */
+  header { text-align: center; margin-bottom: 24px; }
+  .eyebrow { font: 700 12px/1 var(--display); letter-spacing: .35em; color: var(--gold); text-transform: uppercase; margin: 0 0 10px; }
+  h1 {
+    margin: 0; font: 800 clamp(28px, 7vw, 46px)/1.05 var(--display); letter-spacing: .02em;
+    background: linear-gradient(180deg, #fff3c4 0%, var(--gold-bright) 40%, var(--gold) 70%, #8a6a26 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 2px 0 #000) drop-shadow(0 0 18px rgba(201, 162, 74, .25));
+  }
+  .divider { display: flex; align-items: center; gap: 10px; max-width: 360px; margin: 16px auto 0; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold)); }
+  .divider::after { background: linear-gradient(90deg, var(--gold), transparent); }
+  .divider span { width: 9px; height: 9px; background: var(--gold-bright); transform: rotate(45deg); box-shadow: 0 0 8px rgba(244, 210, 122, .6); }
+  .toolbar { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 14px; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+
+  /* Two columns on wide screens: members left, party + dungeons right (sticky) */
+  .layout { display: grid; gap: 18px; grid-template-areas: "aside" "members"; }
+  .layout > aside { grid-area: aside; display: grid; gap: 18px; align-content: start; min-width: 0; }
+  .layout > #list { grid-area: members; }
+  .col3 { display: contents; } /* loot + hall of fame: their own column only on wide screens */
+  /* One column: party and dungeons first, then the characters, then the loot feed */
+  @media (max-width: 999px) {
+    .layout { grid-template-areas: none; grid-template-columns: minmax(0, 1fr); }
+    .layout > aside { display: contents; }
+    #dungeons, #loot { min-width: 0; } /* long lines truncate instead of widening the page */
+    .layout > #list { grid-area: auto; order: 3; }
+    #dungeons { order: 2; } #loot { order: 4; }
+  }
+  @media (min-width: 1000px) {
+    .layout { grid-template-columns: minmax(0, 1fr) 460px; grid-template-areas: "members aside"; align-items: start; gap: 22px; }
+    .layout > aside {
+      position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;
+      padding: 4px 4px 8px; margin: -4px; /* room for the frame corner gems */
+      scrollbar-width: thin; scrollbar-color: var(--gold-dark) transparent;
+    }
+  }
+  /* Wide screens: three columns, characters | party + dungeons | loot feed */
+  @media (min-width: 1400px) {
+    main { max-width: 1580px; }
+    .layout { grid-template-columns: minmax(0, 1fr) 880px; }
+    .layout > aside {
+      grid-template-columns: 460px minmax(0, 1fr);
+      grid-template-areas: "dungeons loot"; column-gap: 22px;
+    }
+    #dungeons { grid-area: dungeons; align-self: start; }
+    .col3 { grid-area: loot; display: grid; gap: 18px; align-content: start; min-width: 0; }
+  }
+
+  /* Framed panels */
+  .frame {
+    position: relative;
+    background: linear-gradient(180deg, var(--panel-top), var(--panel-bottom));
+    border: 1px solid var(--gold-dark); border-radius: 6px;
+    box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px rgba(201, 162, 74, .12), 0 6px 18px rgba(0, 0, 0, .55);
+  }
+  .frame::before, .frame::after {
+    content: ""; position: absolute; top: -4px; width: 7px; height: 7px;
+    background: var(--gold); transform: rotate(45deg); box-shadow: 0 0 0 1px #000;
+  }
+  .frame::before { left: -4px; }
+  .frame::after { right: -4px; }
+  .panel { padding: 16px 18px; }
+  h2 { margin: 0; font: 700 13px/1 var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .panel-head small { color: var(--muted); font-size: 12px; }
+
+  /* Party panel */
+  .party-top { display: flex; align-items: center; gap: 14px; }
+  .party-level { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; flex: none;
+    background: radial-gradient(circle at 40% 30%, #3b2e1b, #0d0a06); border: 2px solid var(--gold);
+    box-shadow: 0 0 0 2px #000, 0 0 18px rgba(201, 162, 74, .25); }
+  .party-level b { font: 800 24px/1 var(--display); color: var(--gold-bright); text-shadow: 0 1px 0 #000; }
+  .party-level small { font: 700 8px/1 var(--display); letter-spacing: .15em; color: var(--muted); margin-top: -12px; }
+  .party-status { font: 700 17px/1.3 var(--display); }
+  .party-status.ok { color: var(--good); }
+  .party-status.spread { color: var(--ahead); }
+  .party-detail { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  /* Party panel: full width above the cards. Squad summaries on top, one level track for everyone. */
+  #party { margin-bottom: 18px; min-width: 0; }
+  .party-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 40px; }
+  .squad-name { font: 700 11px/1 var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+  .party-top .party-status { display: inline; font-size: 16px; }
+  /* phones: the track keeps ~30px per level and scrolls sideways */
+  .track-scroll { overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--gold-dark) transparent; margin: 0 -6px; padding: 0 6px; }
+  .track .dot.alt { width: 26px; height: 26px; margin-left: -13px; }
+  .track .dot.nosync { border-style: dashed; opacity: .7; }
+  /* an alt wears its main's portrait as a small badge in the corner */
+  #party .track .dot { overflow: visible; transition: opacity .15s, box-shadow .15s; }
+  #party .track .dot > img, #party .track .dot > .initial { border-radius: 50%; }
+  .track .dot .mini { position: absolute; right: -7px; bottom: -5px; width: 16px; height: 16px; border-radius: 50%; overflow: hidden;
+    border: 1.5px solid var(--gold); background: var(--inset); box-shadow: 0 0 0 1px #000; }
+  .track .dot .mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .track .dot .mini .initial { font-size: 8px; }
+  @media (min-width: 1000px) {
+    #party .track .dot { width: 40px; height: 40px; margin-left: -20px; }
+    #party .track .dot.alt { width: 34px; height: 34px; margin-left: -17px; }
+    .track .dot .mini { width: 19px; height: 19px; right: -8px; bottom: -5px; }
+  }
+  /* hovering someone lights up their main + alts, linked by gold arcs; everyone else fades */
+  .track .fam-arcs { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 40; }
+  .track .fam-arcs path { fill: none; stroke: var(--gold-bright); stroke-width: 1.5; stroke-dasharray: 4 3; filter: drop-shadow(0 0 3px rgba(244, 210, 122, .7)); }
+  .track.fam-on .dot:not(.hl) { opacity: .22; }
+  .track.fam-on .band, .track.fam-on .pmark { opacity: .35; }
+  .track.fam-on .dot.hl { opacity: 1; z-index: 50 !important; box-shadow: 0 0 0 1px #000, 0 0 12px rgba(244, 210, 122, .8); }
+
+  /* Level track: everyone's portrait at their level, gold band = in sync */
+  .track { margin: 16px 16px 0; min-width: calc(var(--levels) * 34px); }
+  .track-area { position: relative; }
+  .track .band { position: absolute; top: 18px; bottom: 0; background: rgba(111, 220, 90, .08); border-left: 1px dashed rgba(111, 220, 90, .35); border-right: 1px dashed rgba(111, 220, 90, .35); }
+  .track .pmark { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: linear-gradient(180deg, transparent 14px, var(--gold-bright) 14px); box-shadow: 0 0 6px rgba(244, 210, 122, .5); }
+  .track .pmark span { position: absolute; top: 0; left: 50%; transform: translateX(-50%); font: 700 10px/1 var(--display); letter-spacing: .1em; color: var(--gold-bright); white-space: nowrap; }
+  .track .dot { position: absolute; width: 30px; height: 30px; margin-left: -15px; border-radius: 50%; overflow: hidden; display: block;
+    border: 2px solid var(--gold); background: var(--inset); box-shadow: 0 0 0 1px #000, 0 2px 5px rgba(0, 0, 0, .8); }
+  .track .dot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .track .dot:hover { transform: scale(1.12); z-index: 9; }
+  .track .axis { position: relative; height: 22px; border-top: 2px solid var(--gold-dark); margin-top: 4px; }
+  .track .tick { position: absolute; top: 0; transform: translateX(-50%); font: 600 11px/1 var(--body); color: var(--faint); padding-top: 6px; }
+  .track .tick::before { content: ""; position: absolute; top: 0; left: 50%; width: 1px; height: 4px; background: var(--gold-dark); }
+  .track .tick.party { color: var(--gold-bright); font-weight: 800; }
+  /* a collapsed empty stretch: the axis line breaks with two slashes */
+  .track .axis-break { position: absolute; top: -2px; height: 2px; background: var(--panel-bottom); }
+  .track .axis-break::before, .track .axis-break::after { content: ""; position: absolute; top: -5px; width: 2px; height: 12px; background: var(--gold-dark); transform: rotate(25deg); }
+  .track .axis-break::before { left: 0; }
+  .track .axis-break::after { right: 0; }
+
+  .initial { display: grid; place-items: center; width: 100%; height: 100%; font: 700 12px/1 var(--display); color: var(--muted); }
+
+  /* Dungeon grid: dungeons as rows, members as columns */
+  .dgrid-wrap { overflow-x: auto; }
+  table.dgrid { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .dgrid th { font-weight: normal; padding: 0 1px 6px; vertical-align: bottom; }
+  .dgrid td { padding: 7px 1px; }
+  .dgrid th.d-h { text-align: left; color: var(--faint); font-size: 11px; padding-left: 8px; }
+  .dgrid .who-h { width: 38px; text-align: center; }
+  .dgrid .who-h .av { width: 26px; height: 26px; margin: 0 auto; border-radius: 50%; overflow: hidden; border: 2px solid var(--gold); background: var(--inset); box-shadow: 0 0 0 1px #000; }
+  .dgrid .who-h img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .dgrid .who-h span { display: block; margin: 3px auto 0; max-width: 38px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: var(--muted); }
+  .dgrid tbody tr { border-top: 1px solid rgba(201, 162, 74, .14); }
+  .dgrid td.d { padding-left: 8px; padding-right: 6px; }
+  .dgrid .dname { display: block; font: 700 13px/1.25 var(--display); }
+  .dgrid .range { color: var(--gold); font: 700 11px/1 var(--display); white-space: nowrap; }
+  .dgrid .badge { display: inline-block; font: 800 9px/1 var(--display); letter-spacing: .08em; padding: 2px 5px; border-radius: 2px; white-space: nowrap; }
+  .dgrid .badge.new { color: #1a1206; background: var(--gold); }
+  .dgrid .badge.run { color: var(--gold-bright); border: 1px solid var(--gold); padding: 1px 4px; }
+  .dgrid .badge.horde { color: var(--horde); border: 1px solid currentColor; padding: 1px 4px; }
+  .dgrid .badge.alliance { color: var(--alliance); border: 1px solid currentColor; padding: 1px 4px; }
+  .dgrid .badge.old { color: var(--faint); border: 1px solid currentColor; padding: 1px 4px; }
+  /* Dungeons the party has outleveled: smaller and greyed out */
+  .dgrid tr.outleveled td { padding-top: 4px; padding-bottom: 4px; opacity: .5; filter: grayscale(.8); }
+  .dgrid tr.outleveled .dname { font-size: 11.5px; }
+  .dgrid tr.outleveled td.c { font-size: 12px; }
+  .dgrid tr.outleveled:hover td { opacity: .85; filter: none; }
+  .dgrid .note { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 6px; color: var(--faint); font-size: 11px; margin-top: 3px; }
+  .dgrid tr.to-run { background: rgba(201, 162, 74, .08); }
+  .dgrid tr.to-run td.d { box-shadow: inset 3px 0 0 var(--gold-bright); }
+  .dgrid tr.to-run .dname { color: var(--gold-bright); }
+  .dgrid td.c { text-align: center; font-size: 15px; line-height: 1; cursor: default; }
+  .dgrid .c.yes { color: var(--good); text-shadow: 0 0 6px rgba(111, 220, 90, .35); }
+  .dgrid .c.need { color: var(--gold-dark); }
+  .dgrid .c.low { color: var(--behind); opacity: .75; font-size: 11px; font-weight: 700; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px; font-size: 11px; color: var(--faint); }
+  .legend b { font-weight: 700; }
+  .extra-line { margin-top: 10px; color: var(--muted); font-size: 12px; }
+  .extra-line b { color: var(--text); font-weight: 600; }
+  .extra-line .all { color: var(--good); }
+
+  /* Loot feed */
+  ul.loot { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .loot-day { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; font: 700 10px/1 var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--faint); }
+  .loot-day:first-child { margin-top: 0; }
+  .loot-day::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(201, 162, 74, .3), transparent); }
+  .loot-row { display: flex; align-items: center; gap: 11px; padding: 7px 8px; margin: 0 -8px; border-radius: 4px; }
+  .loot-row:hover { background: rgba(201, 162, 74, .06); }
+  .loot-row > a { flex: none; text-decoration: none; }
+  /* item icon framed in its quality colour, with a glow that grows with rarity */
+  .loot-icon { --q: var(--gold-dark); --glow: transparent; position: relative; display: block; width: 36px; height: 36px; flex: none; border-radius: 5px;
+    background: var(--inset); border: 1px solid #000; box-shadow: 0 0 0 1px var(--q), 0 0 10px 1px var(--glow); }
+  .loot-icon img { width: 100%; height: 100%; border-radius: 4px; display: block; }
+  .loot-icon.q-rare { --q: #3d7fd6; --glow: rgba(74, 158, 255, .35); }
+  .loot-icon.q-epic { --q: #9b48e0; --glow: rgba(182, 92, 245, .55); animation: epic-glow 2.6s ease-in-out infinite; }
+  .loot-icon.q-legendary, .loot-icon.q-artifact { --q: #e07400; --glow: rgba(255, 128, 0, .6); animation: epic-glow 2s ease-in-out infinite; }
+  @keyframes epic-glow { 50% { box-shadow: 0 0 0 1px var(--q), 0 0 16px 3px var(--glow); } }
+  @media (prefers-reduced-motion: reduce) { .loot-icon { animation: none !important; } }
+  .loot-row > a:hover .loot-icon { box-shadow: 0 0 0 1px var(--gold-bright), 0 0 12px 2px var(--glow); }
+  .loot-text { min-width: 0; flex: 1; }
+  .loot-line { font-size: 13.5px; line-height: 1.3; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .loot-line b { font-weight: 700; }
+  .loot-line a { text-decoration: none; }
+  .loot-line a:hover .loot-name { text-decoration: underline; }
+  .loot-name { font-weight: 600; }
+  .loot-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; color: var(--faint); font-size: 12px; margin-top: 2px; }
+  .loot-meta i { font-style: normal; color: var(--gold-dark); }
+  .loot-meta .up { font-weight: 700; cursor: help; }
+  .loot-meta .up.plus { color: var(--good); }
+  .loot-meta .up.minus, .loot-meta .up.same { color: var(--muted); font-weight: 600; }
+  .loot-meta .up.new-slot { color: var(--gold-bright); }
+  .loot-row time { flex: none; align-self: flex-start; margin-top: 2px; color: var(--faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .loot-empty { color: var(--muted); font-size: 13px; font-style: italic; padding: 4px 0 2px; }
+
+  /* Hall of Fame */
+  /* Bottom row: Hall of Fame + Legacy leaderboard side by side on wide screens */
+  .bottom { margin-top: 22px; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  /* leaderboard in two columns when there's room, ranked down the first column then the second */
+  @media (min-width: 700px) {
+    ol.legacy { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: repeat(var(--rows), auto); grid-auto-flow: column; column-gap: 30px; }
+  }
+  @media (min-width: 1400px) { .bottom { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: stretch; } }
+  .bottom > section { min-width: 0; }
+  ul.fame { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 8px; }
+  @media (max-width: 520px) { ul.fame { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bottom { margin-top: 18px; } }
+  .award { display: flex; gap: 9px; align-items: center; padding: 8px; border-radius: 4px; min-width: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .03), rgba(0, 0, 0, .15)); border: 1px solid rgba(201, 162, 74, .18); }
+  .award img { flex: none; width: 34px; height: 34px; border-radius: 4px; border: 1px solid #000; box-shadow: 0 0 0 1px var(--gold-dark); }
+  .award { cursor: default; outline: none; }
+  .award:hover, .award:focus-visible, .award:focus { border-color: rgba(201, 162, 74, .5); background: linear-gradient(180deg, rgba(201, 162, 74, .08), rgba(0, 0, 0, .15)); }
+  .award-body { min-width: 0; flex: 1; }
+  /* hovering or tapping a tile swaps the winner line for the top 3 */
+  .award-top { display: none; list-style: none; margin: 3px 0 0; padding: 0; font-size: 11.5px; line-height: 1.35; }
+  .award:hover .award-top, .award:focus .award-top { display: block; }
+  .award:hover .award-front, .award:focus .award-front { display: none; }
+  .award-top li { display: flex; gap: 5px; align-items: baseline; white-space: nowrap; }
+  .award-top .place { color: var(--faint); width: 1.2em; flex: none; }
+  .award-top b { overflow: hidden; text-overflow: ellipsis; }
+  .award-top .num { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; padding-left: 6px; }
+  .award-title { font: 700 10.5px/1.25 var(--display); letter-spacing: .04em; color: var(--gold); }
+  .award-who { font-size: 13px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .award-who .more { color: var(--muted); font-size: 11px; }
+  .award-value { color: var(--faint); font-size: 11.5px; line-height: 1.3; }
+
+  /* WoW-style button */
+  button {
+    font: 700 12px/1 var(--display); letter-spacing: .06em; cursor: pointer;
+    padding: 8px 14px; border-radius: 4px; color: var(--gold); border: 1px solid var(--gold-dark);
+    background: linear-gradient(180deg, #3a2e1e, #1d160e);
+    box-shadow: inset 0 1px 0 rgba(255, 200, 150, .2), inset 0 -2px 4px rgba(0, 0, 0, .5), 0 2px 0 #000;
+    text-shadow: 0 1px 0 #000;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.25); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { filter: grayscale(.7) brightness(.7); cursor: default; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
+
+  /* Party members, styled like unit frames */
+  #list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; align-content: start; }
+  #list > li { display: grid; grid-template-columns: 58px minmax(0, 1fr) 80px; gap: 14px; align-items: center; padding: 12px 14px; scroll-margin-top: 16px; }
+  #list > li:target { border-color: var(--gold-bright); }
+
+  .portrait { position: relative; width: 56px; height: 56px; }
+  .portrait img, .portrait .blank {
+    width: 56px; height: 56px; border-radius: 50%; object-fit: cover; display: block;
+    border: 2px solid var(--gold); background: var(--inset);
+    box-shadow: 0 0 0 2px #000, 0 3px 8px rgba(0, 0, 0, .7);
+  }
+  .lvl {
+    position: absolute; left: -6px; bottom: -4px; min-width: 26px; height: 26px; padding: 0 5px;
+    display: grid; place-items: center; border-radius: 13px;
+    font: 800 13px/1 var(--display); color: var(--gold-bright); text-shadow: 0 1px 0 #000;
+    background: radial-gradient(circle at 40% 30%, #3b2e1b, #0d0a06); border: 1px solid var(--gold);
+    box-shadow: 0 0 0 1px #000, 0 2px 4px rgba(0, 0, 0, .7);
+  }
+
+  .info { min-width: 0; }
+  .name { font: 700 17px/1.2 var(--display); text-decoration: none; text-shadow: 0 1px 0 #000, 0 0 10px rgba(0, 0, 0, .6); }
+  .name:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .meta { color: var(--muted); font-size: 12.5px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nowrap { white-space: nowrap; }
+  .prof { display: inline-flex; align-items: center; gap: 3px; color: var(--text); cursor: help; font-variant-numeric: tabular-nums; }
+  .prof img { width: 14px; height: 14px; border-radius: 2px; border: 1px solid #000; vertical-align: -2px; }
+  .prof.maxed { color: var(--gold-bright); } /* at the cap for their rank: time to visit the trainer */
+
+  .item { display: flex; align-items: center; gap: 7px; font-size: 13px; margin-top: 5px; min-width: 0; }
+  .item img { width: 20px; height: 20px; border-radius: 3px; border: 1px solid #000; box-shadow: 0 0 0 1px var(--gold-dark); flex: none; }
+  .item span, .item a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
+  .item a.item-link { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+  .item a.item-link:hover span { text-decoration: underline; }
+  .item a.item-link:hover img { box-shadow: 0 0 0 1px var(--gold-bright); }
+  .item .ilvl { color: var(--faint); flex: none; }
+  .item .item-label { flex: none; font: 700 10px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); cursor: help; }
+
+  /* XP-style bar: segmented, with the level written inside */
+  .bar {
+    position: relative; height: 14px; margin-top: 7px; border-radius: 3px; overflow: hidden;
+    background: var(--inset); border: 1px solid #000; box-shadow: 0 0 0 1px var(--gold-dark), inset 0 2px 4px rgba(0, 0, 0, .9);
+  }
+  .bar .fill { position: absolute; inset: 0 auto 0 0; }
+  .bar .fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 255, 255, .35), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, .35)); }
+  .bar::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 calc(5% - 1px), rgba(0, 0, 0, .55) calc(5% - 1px) 5%); }
+  .bar .party-mark { position: absolute; top: -1px; bottom: -1px; width: 2px; margin-left: -1px; background: var(--gold-bright); box-shadow: 0 0 6px var(--gold-bright); z-index: 2; }
+  .bar .label { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; font: 700 10px/1 var(--body); color: #fff; text-shadow: 0 1px 1px #000, 0 0 3px #000; letter-spacing: .04em; }
+
+  /* Right-hand column: "+N today" badge on top, main professions under it */
+  .side { align-self: start; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; min-width: 0; }
+  .side:empty { display: none; }
+  .today { font: 700 11px/1 var(--display); letter-spacing: .04em; white-space: nowrap;
+    color: var(--good); padding: 4px 8px; border-radius: 999px; border: 1px solid rgba(111, 220, 90, .55); background: rgba(111, 220, 90, .08); }
+  .profs { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 12.5px; }
+
+  #list > li.loading, #list > li.error { opacity: .65; }
+  #list > li.error .name { color: var(--muted); }
+
+  /* Click a card: its own dungeon log opens underneath */
+  #list > li.card { cursor: pointer; }
+  #list > li.card:hover { border-color: rgba(201, 162, 74, .75); }
+  #list > li.card.open { border-color: var(--gold); box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px rgba(201, 162, 74, .25), 0 0 16px rgba(201, 162, 74, .18), 0 6px 18px rgba(0, 0, 0, .55); }
+  /* Footer strip along the bottom of a card: spec on the left, professions + details button on the right */
+  .card-foot { grid-column: 2 / -1; display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; min-width: 0;
+    margin-top: -4px; padding-top: 7px; border-top: 1px dashed rgba(201, 162, 74, .28); font-size: 12.5px; }
+  .card-foot .profs { flex-direction: row; gap: 12px; font-size: 12.5px; margin-left: auto; }
+  .card-foot .profs + .log-toggle { margin-left: 0; padding-left: 14px; border-left: 1px solid rgba(201, 162, 74, .22); }
+  .log-toggle { margin-left: auto; padding: 2px 0; border: 0; background: none; box-shadow: none; text-shadow: none;
+    font: 700 9.5px/1 var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+  .card:hover .log-toggle, .card.open .log-toggle { color: var(--gold); }
+  .dlog { grid-column: 1 / -1; cursor: default; margin-top: 2px; padding-top: 11px; border-top: 1px solid rgba(201, 162, 74, .2); }
+  .log-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .log-head span { font: 700 12px/1 var(--display); letter-spacing: .15em; text-transform: uppercase; color: var(--gold); }
+  .log-head small { color: var(--muted); font-size: 12px; }
+  .log-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 4px 10px; align-items: baseline; padding: 5px 0; }
+  .log-row + .log-row { border-top: 1px dashed rgba(201, 162, 74, .1); }
+  .log-label { font: 700 10px/1.9 var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .log-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { font-size: 12.5px; line-height: 1; padding: 5px 8px; border-radius: 3px; white-space: nowrap; cursor: default;
+    border: 1px solid rgba(201, 162, 74, .25); background: rgba(0, 0, 0, .28); color: var(--text); }
+  .chip small { margin-left: 5px; font-size: 11px; color: var(--faint); }
+  .chip.done { border-color: rgba(111, 220, 90, .45); background: rgba(111, 220, 90, .07); }
+  .chip.done small { color: var(--good); font-weight: 700; }
+  .chip.open { border-color: var(--gold); background: rgba(201, 162, 74, .1); color: var(--gold-bright); }
+  .chip.open small { color: var(--gold); }
+  .chip.soon { color: var(--muted); border-style: dashed; }
+  .chip.skip { color: var(--faint); text-decoration: line-through; text-decoration-color: rgba(255, 107, 91, .5); border-color: rgba(255, 255, 255, .08); }
+  .log-none, .log-empty { color: var(--faint); font-size: 12.5px; font-style: italic; line-height: 1.9; }
+  .dsec + .dsec { margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(201, 162, 74, .14); }
+
+  /* Talents: "8/0/5" + main tree on the card, the picked talents per tree when opened */
+  .spec { color: var(--text); cursor: help; white-space: nowrap; }
+  .spec b { font-weight: 600; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+  .log-head .unspent { font-style: normal; color: var(--ahead); }
+  .trees { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .tree { min-width: 0; padding: 7px 8px; border-radius: 4px; background: rgba(0, 0, 0, .25); border: 1px solid rgba(201, 162, 74, .16); }
+  .tree.empty { opacity: .5; }
+  .tree-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-bottom: 5px; }
+  .tree-head span { font: 700 11px/1.2 var(--display); letter-spacing: .06em; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree-head b { font: 800 14px/1 var(--display); color: var(--gold-bright); }
+  .tree ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .tree li { display: flex; align-items: center; gap: 6px; font-size: 12.5px; cursor: help; min-width: 0; }
+  .tree li img, .tree .noicon { width: 20px; height: 20px; flex: none; border-radius: 3px; border: 1px solid #000; box-shadow: 0 0 0 1px var(--gold-dark); background: var(--inset); }
+  .tree .tname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tree .trank { margin-left: auto; flex: none; font-weight: 700; color: var(--good); font-variant-numeric: tabular-nums; }
+  .dgrid .who-h a { display: block; text-decoration: none; }
+  .dgrid .who-h a:hover .av { border-color: var(--gold-bright) !important; }
+  @media (max-width: 520px) {
+    .log-row { grid-template-columns: minmax(0, 1fr); }
+    .chip { font-size: 12px; }
+    .trees { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .card-foot { gap: 4px 8px; font-size: 11.5px; flex-wrap: nowrap; }
+    .card-foot .profs { gap: 7px; font-size: 11.5px; }
+    .card-foot .spec { min-width: 0; overflow: hidden; text-overflow: ellipsis; } /* last resort on very narrow phones */
+    .legacy-badge { gap: 3px; }
+    .card-foot .profs + .log-toggle { padding-left: 0; border-left: 0; }
+    .log-toggle .lt-text { display: none; } /* just the arrow, so the strip stays on one line */
+    .log-toggle { font-size: 14px; padding: 0 2px; }
+  }
+  /* Legacy: shield + points on the card, leaderboard panel per account */
+  .shield { width: 11px; height: 12px; flex: none; fill: rgba(201, 162, 74, .22); stroke: var(--gold); stroke-width: 1.4; stroke-linejoin: round; }
+  .legacy-badge { display: inline-flex; align-items: center; gap: 4px; color: var(--gold-bright); font-weight: 600; font-variant-numeric: tabular-nums; cursor: help; white-space: nowrap; }
+  .panel-head small .shield { vertical-align: -1px; margin-right: 2px; }
+  ol.legacy { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .lg-row { display: flex; align-items: center; gap: 10px; padding: 5px 8px; margin: 0 -8px; border-radius: 4px; }
+  .lg-row:hover { background: rgba(201, 162, 74, .06); }
+  .lg-place { width: 14px; flex: none; text-align: right; font: 700 12px/1 var(--display); color: var(--faint); }
+  .lg-row.lead .lg-place { color: var(--gold-bright); }
+  .lg-av { flex: none; display: block; text-decoration: none; }
+  .lg-av img, .lg-av .blank { display: block; width: 28px; height: 28px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold-dark); background: var(--inset); box-shadow: 0 0 0 1px #000; }
+  .lg-row.lead .lg-av img, .lg-row.lead .lg-av .blank { border-color: var(--gold-bright); }
+  .lg-body { flex: 1; min-width: 0; }
+  .lg-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .lg-name { font: 700 13.5px/1.2 var(--display); text-decoration: none; white-space: nowrap; }
+  .lg-name:hover, .lg-alts a:hover { text-decoration: underline; }
+  .lg-alts { color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .lg-alts a { text-decoration: none; font-weight: 600; }
+  .lg-pts { flex: none; min-width: 30px; justify-content: flex-end; display: inline-flex; align-items: center; gap: 4px;
+    font: 800 14px/1 var(--display); color: var(--gold-bright); font-variant-numeric: tabular-nums; cursor: help; }
+  .lg-pts .shield { width: 12px; height: 13px; }
+  /* progress to the next Legacy reward, between the name and the points */
+  .lg-bar { position: relative; flex: 1 1 40px; min-width: 24px; max-width: 120px; margin-left: auto; height: 4px; border-radius: 2px; background: var(--inset); box-shadow: 0 0 0 1px rgba(0, 0, 0, .8); overflow: hidden; cursor: help; }
+  .lg-bar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--gold-dark), var(--gold-bright)); }
+  .lg-next { margin-top: 2px; font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: help; }
+  .lg-next b { color: var(--muted); font-weight: 600; }
+  .lg-next span { font-variant-numeric: tabular-nums; }
+  .alt-of { margin-left: 6px; color: var(--faint); font-size: 12px; white-space: nowrap; }
+  .alt-of a { font-weight: 600; text-decoration: none; }
+  .alt-of a:hover { text-decoration: underline; }
+  .alt-of .alt-lvl { font-variant-numeric: tabular-nums; color: var(--muted); }
+
+  h2 .h2-sub { color: var(--muted); letter-spacing: .15em; }
+  /* Squad switch in the dungeon panel header: picks whose dungeon grid shows */
+  .dungeons-head { align-items: center; margin-bottom: 6px; }
+  .dungeons-sum { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--gold-dark); border-radius: 4px; overflow: hidden; box-shadow: 0 2px 0 #000; }
+  .seg[hidden] { display: none; }
+  .seg button { font: 700 11px/1 var(--display); letter-spacing: .1em; padding: 7px 13px; border: 0; border-radius: 0;
+    background: transparent; color: var(--muted); box-shadow: none; text-shadow: none; }
+  .seg button + button { border-left: 1px solid var(--gold-dark); }
+  .seg button.on { background: linear-gradient(180deg, #3a2e1e, #1d160e); color: var(--gold-bright); box-shadow: inset 0 1px 0 rgba(255, 200, 150, .2); }
+  .seg button small { font: 600 10px/1 var(--body); color: var(--faint); margin-left: 4px; letter-spacing: 0; }
+  .loot-line .alt-tag, .alt-tag { display: inline-block; margin-left: 5px; padding: 1px 4px; border: 1px solid var(--faint); border-radius: 2px;
+    font: 800 8.5px/1 var(--display); letter-spacing: .08em; color: var(--muted); vertical-align: 1px; }
+  #list > li.empty { display: block; color: var(--muted); text-align: center; padding: 36px 16px; font-style: italic; }
+
+  footer { margin-top: 36px; text-align: center; color: var(--faint); font-size: 12px; }
+  footer a { color: var(--muted); }
+
+  @media (max-width: 520px) {
+    main { padding-top: 26px; }
+    .panel { padding: 14px; }
+    #list > li { grid-template-columns: 48px minmax(0, 1fr) 62px; gap: 10px; padding: 12px; }
+    .item .item-label { display: none; } /* room for the item name next to the professions column */
+    .portrait, .portrait img, .portrait .blank { width: 46px; height: 46px; }
+    .lvl { min-width: 22px; height: 22px; font-size: 11px; }
+    .name { font-size: 15px; }
+    .meta { white-space: normal; }
+    .track { margin: 14px 18px 0; }
+    .party-head { gap: 12px; }
+    .info .alt-of { display: block; margin: 1px 0 0; }
+    /* faded edges hint that the track scrolls sideways */
+    .track-scroll { -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+      mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent); }
+    .dgrid .who-h { width: 32px; }
+    .dgrid .who-h span { max-width: 32px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">World of Warcraft · Forever</p>
+    <h1>Klippan Forever Tracker</h1>
+    <div class="divider"><span></span></div>
+    <div class="toolbar">
+      <span id="status"></span>
+      <button id="refresh" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <section class="frame panel" id="party" hidden></section>
+
+  <div class="layout">
+    <aside>
+      <section class="frame panel" id="dungeons" hidden></section>
+      <div class="col3">
+        <section class="frame panel" id="loot" hidden></section>
+      </div>
+    </aside>
+    <ol id="list"></ol>
+  </div>
+
+  <div class="bottom">
+    <section class="frame panel" id="fame" hidden></section>
+    <section class="frame panel" id="legacy" hidden></section>
+  </div>
+
+  <footer>Character data from the Battle.net API and <a href="https://armorywowforever.com" target="_blank" rel="noopener">Armory WoW Forever</a> · item tooltips by <a href="https://www.wowhead.com/forever" target="_blank" rel="noopener">Wowhead</a></footer>
+</main>
+
+<script>
+const MAX_LEVEL = 60;
+const SYNC_TOLERANCE = 1; // within this many levels of the party counts as "in sync"
+const WOWHEAD_PATH = "forever"; // Wowhead's section for WoW Forever items
+const CLASS_COLORS = {
+  "Death Knight": "#C41E3A", "Druid": "#FF7C0A", "Hunter": "#AAD372", "Mage": "#3FC7EB",
+  "Monk": "#00FF98", "Paladin": "#F48CBA", "Priest": "#FFFFFF", "Rogue": "#FFF468",
+  "Shaman": "#0070DD", "Warlock": "#8788EE", "Warrior": "#C69B6D", "Evoker": "#33937F", "Demon Hunter": "#A330C9",
+};
+const QUALITY_COLORS = {
+  POOR: "#9d9d9d", COMMON: "#ffffff", UNCOMMON: "#1eff00", RARE: "#4a9eff",
+  EPIC: "#b65cf5", LEGENDARY: "#ff8000", ARTIFACT: "#e6cc80", HEIRLOOM: "#00ccff",
+};
+
+const $ = id => document.getElementById(id);
+const keyOf = f => `${f.game}/${f.region}/${f.server}/${f.slug}`.toLowerCase();
+const memberId = f => "m-" + f.slug.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+const armoryUrl = f => `https://armorywowforever.com/c/${f.game}/${f.region}/${f.server}/${encodeURIComponent(f.slug)}`;
+const loaded = () => rows.filter(r => r.data && !r.data.error);
+const byLevel = (a, b) => (b.data?.level ?? -1) - (a.data?.level ?? -1);
+const nameParts = r => (r.data?.name || r.friend.slug).split(/[\s-]+/);
+// Short name for tight spots. An alt sharing a first name with a main goes by its last name
+// instead (Uneven Holiness shows as "Holiness" next to Uneven Milim).
+const firstName = r => {
+  const [first, last] = nameParts(r);
+  const clash = last && squadOf(r) !== "main" && rows.some(o => o !== r && squadOf(o) === "main" && nameParts(o)[0] === first);
+  return clash ? last : first;
+};
+const classColor = r => CLASS_COLORS[r.data?.className] || "var(--gold)";
+const norm = s => String(s).toLowerCase().replace(/^the\s+/, "").replace(/[^a-z0-9]/g, "");
+
+// Squads level separately: each has its own party level, level track and dungeon list.
+// friends.json sets "squad" (default: the main squad) and, for alts, "main" (internal link, not shown yet).
+const SQUAD_LABELS = { main: "Main squad", alts: "Newbies" };
+const squadOf = r => r.friend.squad || "main";
+const squadLabel = s => SQUAD_LABELS[s] || `${s[0].toUpperCase()}${s.slice(1)} squad`;
+const squadNames = () => [...new Set(rows.map(squadOf))].sort((a, b) => (b === "main") - (a === "main") || a.localeCompare(b));
+const squadMembers = s => loaded().filter(r => squadOf(r) === s);
+// "sync": false in friends.json = plays alongside but doesn't level-sync: kept off the level track
+// and out of the party level, but still has a card, dungeon column, loot and awards.
+const syncs = r => r.friend.sync !== false;
+// Squads that level freely: no party level, sync band or out-of-sync count on their track.
+const FREE_SQUADS = new Set(["alts"]);
+const squadSyncs = s => !FREE_SQUADS.has(s);
+// The card whose dungeon log is open (its element id), or null. Mirrored in the URL hash so a link opens it.
+let openCard = null;
+// The squad whose cards and dungeons are on show; remembered per viewer.
+let viewSquad = (() => { try { return localStorage.getItem("squad") || "main"; } catch { return "main"; } })();
+function setSquad(s) {
+  viewSquad = s;
+  try { localStorage.setItem("squad", s); } catch {}
+  render();
+}
+let rows = [];
+let DUNGEONS = []; // from dungeons.json: name, min, max, and optionally bosses / forever / territory
+let LOOT = []; // loot feed entries: t, who, className, id, name, quality, ilvl, slotName, icon
+
+function ago(ms) {
+  if (!ms) return "";
+  const m = Math.round((Date.now() - ms) / 60000);
+  if (m < 60) return `${Math.max(m, 1)}m ago`;
+  if (m < 1440) return `${Math.round(m / 60)}h ago`;
+  return `${Math.round(m / 1440)}d ago`;
+}
+
+function shortDate(ms) {
+  return ms ? new Date(ms).toLocaleDateString([], { day: "numeric", month: "short" }) : "";
+}
+
+// Levels gained since midnight (viewer's time). History holds a [time, level] point per level change,
+// so the baseline is the last point before midnight, or the first point if tracking started today.
+function gainToday(history) {
+  if (!history || history.length < 2) return 0;
+  const midnight = new Date().setHours(0, 0, 0, 0);
+  const before = [...history].reverse().find(([t]) => t < midnight) || history[0];
+  return history[history.length - 1][1] - before[1];
+}
+
+// The party's level is the median, so one person racing ahead (or falling behind) doesn't drag it.
+function partyLevel(members = loaded()) {
+  const levels = members.filter(syncs).map(r => r.data.level).sort((a, b) => a - b);
+  if (!levels.length) return null;
+  const mid = Math.floor(levels.length / 2);
+  return levels.length % 2 ? levels[mid] : Math.round((levels[mid - 1] + levels[mid]) / 2);
+}
+
+function avatarImg(r) {
+  return r.data?.avatar
+    ? `<img src="${escapeHtml(r.data.avatar)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'initial',textContent:'${escapeHtml(firstName(r)[0])}'}))">`
+    : `<span class="initial">${escapeHtml(firstName(r)[0])}</span>`;
+}
+
+// One full-width panel above everything: a party summary per syncing squad, a level range per free
+// squad, and a single level track with everyone on it.
+function renderParty() {
+  const panel = $("party");
+  const all = loaded();
+  if (!all.length) { panel.hidden = true; return; }
+  const squads = squadNames().filter(s => squadMembers(s).length);
+  const levelText = members => {
+    const lv = members.map(r => r.data.level);
+    const lo = Math.min(...lv), hi = Math.max(...lv);
+    return lo === hi ? `level ${lo}` : `levels ${lo}–${hi}`;
+  };
+  // Only syncing squads get a summary; everyone else is simply on the track.
+  const blocks = squads.filter(squadSyncs).map(s => {
+    const members = squadMembers(s);
+    const syncing = members.filter(syncs);
+    if (syncing.length) {
+      const party = partyLevel(syncing);
+      const offSync = syncing.filter(r => Math.abs(r.data.level - party) > SYNC_TOLERANCE);
+      const status = offSync.length
+        ? `<span class="party-status spread">${offSync.length} out of sync</span>`
+        : `<span class="party-status ok">In sync</span>`;
+      return `<div class="party-top">
+        <div class="party-level" title="Party level (the median of the squad's levels)"><b>${party}</b><small>PARTY</small></div>
+        <div><div class="squad-name">${escapeHtml(squadLabel(s))}</div>${status}
+          <div class="party-detail">${members.length} players · ${levelText(syncing)} · green band = in sync (±${SYNC_TOLERANCE})</div></div>
+      </div>`;
+    }
+    return "";
+  }).join("");
+  panel.innerHTML = `<div class="party-head">${blocks}</div>${levelTrackHtml(all)}`;
+  panel.hidden = false;
+  // phones: the track scrolls sideways, so start it at the main squad's party level
+  const scroller = panel.querySelector(".track-scroll");
+  const mark = panel.querySelector(".pmark");
+  if (scroller && mark && scroller.scrollWidth > scroller.clientWidth)
+    scroller.scrollLeft = mark.offsetLeft - scroller.clientWidth * .6;
+}
+
+// A number line from just below the lowest level to just above the highest, with everyone's
+// portrait at their level (stacked when several share one) and the party level marked in gold.
+function levelTrackHtml(members) {
+  const levels = members.map(r => r.data.level);
+  let lo = Math.min(...levels) - 1, hi = Math.max(...levels) + 1;
+  while (hi - lo < 8) { lo--; hi++; }
+  if (lo < 1) { hi += 1 - lo; lo = 1; }
+  if (hi > MAX_LEVEL) { lo = Math.max(1, lo - (hi - MAX_LEVEL)); hi = MAX_LEVEL; }
+
+  const partyOf = {};
+  for (const s of squadNames()) {
+    const sq = members.filter(r => squadOf(r) === s);
+    if (sq.length && squadSyncs(s) && partyLevel(sq) != null) partyOf[s] = partyLevel(sq);
+  }
+  const parties = Object.values(partyOf);
+
+  // Long empty stretches (someone far ahead) shrink to a short break so the crowd keeps its room.
+  const keys = [...new Set([...levels, ...parties])].sort((a, b) => a - b);
+  const breaks = [];
+  for (let i = 0; i + 1 < keys.length; i++)
+    if (keys[i + 1] - keys[i] > 6) breaks.push([keys[i] + 2, keys[i + 1] - 2]);
+  const unit = k => { const b = breaks.find(([a, z]) => k >= a && k < z); return b ? 1.5 / (b[1] - b[0]) : 1; };
+  const x = l => {
+    if (l <= lo) return l - lo;
+    let s = 0;
+    for (let k = lo; k < Math.floor(l); k++) s += unit(k);
+    return s + (l - Math.floor(l)) * unit(Math.floor(l));
+  };
+  const total = x(hi);
+  const pos = l => Math.min(100, Math.max(0, (x(l) / total) * 100));
+  const inBreak = l => breaks.some(([a, z]) => l > a && l < z);
+
+  // Each syncing squad gets a green band around its party level and a gold PARTY marker.
+  let bands = "";
+  for (const [s, party] of Object.entries(partyOf)) {
+    const l = pos(party - SYNC_TOLERANCE - .45), w = pos(party + SYNC_TOLERANCE + .45) - l;
+    bands += `<div class="band" style="left:${l}%;width:${w}%"></div>
+      <div class="pmark" style="left:${pos(party)}%"><span>${escapeHtml(squadLabel(s).toUpperCase())} · ${party}</span></div>`;
+  }
+
+  const stacks = {};
+  for (const r of [...members].sort((a, b) => (squadOf(a) !== "main") - (squadOf(b) !== "main") || firstName(a).localeCompare(firstName(b))))
+    (stacks[r.data.level] ||= []).push(r);
+  const tallest = Math.max(...Object.values(stacks).map(s => s.length));
+  const wide = matchMedia("(min-width: 1000px)").matches;
+  const STEP = wide ? 30 : 24, LABEL = 20, DOT = wide ? 40 : 32;
+  const height = LABEL + DOT + (tallest - 1) * STEP + 6;
+
+  // Alts wear a small badge of their main's portrait; data-family ties a main and its alts together
+  // for the hover highlight (only set when the family has two or more on the track).
+  const familySize = {};
+  for (const r of members) familySize[accountKey(r)] = (familySize[accountKey(r)] || 0) + 1;
+  const dots = Object.entries(stacks).flatMap(([lvl, list]) => list.map((r, i) => {
+    const main = mainOf(r);
+    const alts = main ? [] : altsOf(r);
+    const note = [squadLabel(squadOf(r)), main && `alt of ${firstName(main)}`, alts.length && `${alts.length > 1 ? "alts" : "alt"}: ${alts.map(firstName).join(", ")}`,
+      !syncs(r) && "doesn't level-sync"].filter(Boolean).join(" · ");
+    const cls = ["dot", main && "alt", !syncs(r) && "nosync"].filter(Boolean).join(" ");
+    const fam = familySize[accountKey(r)] > 1 ? ` data-family="${escapeHtml(accountKey(r))}"` : "";
+    const badge = main ? `<span class="mini" style="border-color:${classColor(main)}">${avatarImg(main)}</span>` : "";
+    return `<a class="${cls}" href="#${memberId(r.friend)}"${fam} title="${escapeHtml(r.data.name)} · level ${lvl} · ${escapeHtml(note)}"
+        style="left:${pos(+lvl)}%;bottom:${6 + i * STEP}px;border-color:${classColor(r)};z-index:${i + 1}">${avatarImg(r)}${badge}</a>`;
+  })).join("");
+
+  let ticks = "";
+  for (let l = lo; l <= hi; l++)
+    if (!inBreak(l)) ticks += `<span class="tick${parties.includes(l) ? " party" : ""}" style="left:${pos(l)}%">${l}</span>`;
+  ticks += breaks.map(([a, z]) => `<span class="axis-break" style="left:${pos(a)}%;width:${pos(z) - pos(a)}%" title="Levels ${a + 1}–${z - 1}: nobody here"></span>`).join("");
+
+  return `<div class="track-scroll"><div class="track" style="--levels:${Math.ceil(total)}">
+    <div class="track-area" style="height:${height}px">${bands}<svg class="fam-arcs" aria-hidden="true"></svg>${dots}</div>
+    <div class="axis">${ticks}</div>
+  </div></div>`;
+}
+
+// Blizzard files kills as "Boss kills (Dungeon)". Wings that share a dungeon name (Scarlet Monastery,
+// Dire Maul, ...) list their end bosses in dungeons.json and are matched by boss instead.
+function matches(clear, dungeon) {
+  return dungeon.bosses && clear.bosses.length
+    ? clear.bosses.some(b => dungeon.bosses.some(x => norm(x) === norm(b)))
+    : norm(clear.name) === norm(dungeon.name);
+}
+
+// Blizzard bumps the boss statistics of faction-mirror dungeons together: a Hall of Thanes clear
+// also shows up as a Ragefire Chasm kill, same count, same second. When a twin pair matches
+// exactly, keep only the dungeon on the character's own side.
+function realClears(r) {
+  // Spelunker achievement clears ("via": "achievement") only fill in dungeons without a boss statistic.
+  const all = r.data.dungeons.list;
+  const stat = all.filter(c => c.via !== "achievement");
+  const list = stat.concat(all.filter(c => c.via === "achievement" &&
+    !stat.some(s => DUNGEONS.some(d => matches(c, d) && matches(s, d)))));
+  return list.filter(c => {
+    const d = DUNGEONS.find(x => x.twin && matches(c, x));
+    if (!d || d.territory !== "HORDE" && d.territory !== "ALLIANCE") return true;
+    const twin = list.find(o => norm(o.name) === norm(d.twin));
+    const mirrored = twin && twin.kills === c.kills && twin.last === c.last;
+    return !mirrored || d.territory === r.data.faction;
+  });
+}
+
+function mostCommonFaction(members) {
+  const counts = {};
+  for (const r of members) counts[r.data.faction] = (counts[r.data.faction] || 0) + 1;
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+}
+
+// One grid: a row per dungeon that matters right now (someone has cleared it, or it's the right
+// level for the party), a column per member. Dungeons everyone has cleared fold into one line below.
+function renderDungeons() {
+  const panel = $("dungeons");
+  const members = squadMembers(viewSquad);
+  const tracked = members.filter(r => r.data.dungeons).sort(byLevel);
+  if (!tracked.length) { panel.hidden = true; return; }
+  const party = partyLevel(members);
+  // The squad switch lives here: it only picks whose dungeon grid shows (cards and the track show everyone).
+  const squads = squadNames();
+  const toggle = squads.length > 1 ? `<div class="seg" role="group" aria-label="Whose dungeons">${squads.map(s => {
+    const n = rows.filter(r => squadOf(r) === s).length;
+    return `<button type="button" data-squad="${escapeHtml(s)}" class="${s === viewSquad ? "on" : ""}" aria-pressed="${s === viewSquad}">${escapeHtml(squadLabel(s))}<small>${n}</small></button>`;
+  }).join("")}</div>` : "";
+  const faction = mostCommonFaction(members);
+
+  // Kills in a dungeon that isn't in dungeons.json still show up, just without a level range.
+  const extras = [];
+  const clearsOf = new Map(tracked.map(r => [r, realClears(r)]));
+  for (const r of tracked) for (const c of clearsOf.get(r)) {
+    if (DUNGEONS.some(d => matches(c, d)) || extras.some(e => norm(e.name) === norm(c.name))) continue;
+    extras.push({ name: c.name, extra: true });
+  }
+  const all = [...DUNGEONS, ...extras].map(d => ({
+    ...d, clears: new Map(tracked.map(r => [r, clearsOf.get(r).filter(c => matches(c, d))]).filter(([, cs]) => cs.length)),
+  }));
+  const inRange = d => d.min != null && party >= d.min && party <= d.max;
+  const bySort = (a, b) => (a.min ?? 99) - (b.min ?? 99) || (a.max ?? 99) - (b.max ?? 99) || a.name.localeCompare(b.name);
+  // "Cleared by everyone" only needs the people on the sync track ("sync": false levels on their own).
+  const required = tracked.some(syncs) ? tracked.filter(syncs) : tracked;
+  const allDone = d => required.every(r => d.clears.has(r));
+  const everyone = all.filter(allDone).sort(bySort);
+  const isOld = d => d.max != null && party > d.max;
+  const shown = all.filter(d => !allDone(d) && (d.clears.size || inRange(d)))
+    .sort((a, b) => isOld(a) - isOld(b) || bySort(a, b)); // outleveled ones go last
+  const toRun = shown.filter(d => !d.clears.size);
+  const partial = shown.filter(d => d.clears.size);
+  const upNext = DUNGEONS.filter(d => d.min > party).sort(bySort).slice(0, 3);
+
+  const head = `<tr><th class="d-h">Dungeon</th>${tracked.map(r =>
+    `<th class="who-h"><a href="#${memberId(r.friend)}" title="${escapeHtml(r.data.name)} · level ${r.data.level} · show their dungeons"><div class="av" style="border-color:${classColor(r)}">${avatarImg(r)}</div><span>${escapeHtml(firstName(r))}</span></a></th>`).join("")}</tr>`;
+
+  const body = shown.map(d => {
+    const outleveled = isOld(d);
+    const enemy = d.territory && faction && d.territory !== faction ? d.territory : null;
+    const cells = tracked.map(r => {
+      const who = escapeHtml(firstName(r));
+      const cs = d.clears.get(r);
+      if (cs) {
+        const kills = cs.reduce((n, c) => n + c.kills, 0);
+        const last = Math.max(...cs.map(c => c.last || 0));
+        return `<td class="c yes" title="${who} has cleared it${kills > 1 ? ` (×${kills})` : ""}${last ? ` · synced ${shortDate(last)}` : ""}">✓</td>`;
+      }
+      if (d.min != null && r.data.level < d.min) return `<td class="c low" title="${who} is level ${r.data.level}, below ${d.min}">${r.data.level}</td>`;
+      return `<td class="c need" title="${who} still needs it">○</td>`;
+    }).join("");
+    const tags = (d.min != null ? `<span class="range">${d.min}–${d.max}</span>` : "")
+      + (d.clears.size ? "" : `<span class="badge run" title="Right level for the party and nobody has cleared it yet">TO RUN</span>`)
+      + (d.forever ? `<span class="badge new" title="New in WoW Forever">NEW</span>` : "")
+      + (enemy ? `<span class="badge ${enemy === "HORDE" ? "horde" : "alliance"}" title="Inside ${enemy === "HORDE" ? "Horde" : "Alliance"} territory">${enemy === "HORDE" ? "HORDE" : "ALLIANCE"} AREA</span>` : "")
+      + (outleveled ? `<span class="badge old" title="The party level (${party}) is above this dungeon's range">OUTLEVELED</span>` : "");
+    const cls = [d.clears.size ? "" : "to-run", outleveled ? "outleveled" : ""].join(" ").trim();
+    return `<tr class="${cls}"><td class="d">
+        <span class="dname">${escapeHtml(d.name)}</span>
+        <span class="note">${tags}</span>
+      </td>${cells}</tr>`;
+  }).join("");
+
+  const missing = members.filter(r => !r.data.dungeons);
+  const summary = [toRun.length && `${toRun.length} to run`, partial.length && `${partial.length} partly cleared`, everyone.length && `${everyone.length} done`].filter(Boolean).join(" · ");
+
+  panel.innerHTML = `<div class="panel-head dungeons-head"><h2>Dungeons</h2>${toggle}</div>
+    ${summary ? `<div class="dungeons-sum">${summary}</div>` : ""}
+    ${shown.length
+      ? `<div class="dgrid-wrap"><table class="dgrid"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+         <div class="legend"><span><b style="color:var(--good)">✓</b> cleared</span><span><b style="color:var(--gold-dark)">○</b> still needs it</span><span><b style="color:var(--behind)">15</b> level too low</span></div>`
+      : `<div class="party-detail">No open dungeons at level ${party}.</div>`}
+    ${everyone.length ? `<div class="extra-line"><span class="all">Cleared by everyone ✓</span> ${everyone.map(d => `<b>${escapeHtml(d.name)}</b>`).join(" · ")}</div>` : ""}
+    ${upNext.length ? `<div class="extra-line">Up next: ${upNext.map(d => `<b>${escapeHtml(d.name)}</b> (${d.min}–${d.max})`).join(" · ")}</div>` : ""}
+    ${missing.length ? `<div class="extra-line">No dungeon data for ${missing.map(r => escapeHtml(firstName(r))).join(", ")}.</div>` : ""}`;
+  panel.hidden = false;
+}
+
+// Loot feed: newly equipped blue-or-better items, newest first. The tracker notices new gear when it
+// checks (every 15 minutes on the published site), so times are "spotted", not the exact drop.
+const LOOT_ROWS = 12;
+
+function dayLabel(ms) {
+  const day = new Date(ms).setHours(0, 0, 0, 0), today = new Date().setHours(0, 0, 0, 0);
+  if (day === today) return "Today";
+  if (today - day <= 864e5 + 36e5) return "Yesterday"; // +1h covers daylight-saving days
+  return new Date(ms).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" });
+}
+
+// What the new item did compared to what was in the slot before (when the tracker knows).
+function upgradeHtml(e) {
+  if (e.replaced === "empty") return `<span class="up new-slot" title="Nothing was in this slot before">new slot</span>`;
+  const r = e.replaced;
+  if (!r || typeof r !== "object") return "";
+  const was = `Replaced ${r.name || "an item"}${r.ilvl ? ` (ilvl ${r.ilvl})` : ""}`;
+  const diff = (e.ilvl || 0) - (r.ilvl || 0);
+  if (r.ilvl && e.ilvl && diff > 0) return `<span class="up plus" title="${escapeHtml(was)}">▲ +${diff} ilvl</span>`;
+  if (r.ilvl && e.ilvl && diff < 0) return `<span class="up minus" title="${escapeHtml(was)}">▼ ${diff} ilvl</span>`;
+  return `<span class="up same" title="${escapeHtml(was)}">sidegrade</span>`;
+}
+
+function renderLoot() {
+  const panel = $("loot");
+  if (!rows.length) { panel.hidden = true; return; }
+  const feed = [...LOOT].sort((a, b) => b.t - a.t).slice(0, LOOT_ROWS);
+  let lastDay = null;
+  const items = feed.map(e => {
+    const q = String(e.quality || "").toLowerCase();
+    const color = QUALITY_COLORS[e.quality] || "var(--text)";
+    const href = Number.isInteger(e.id) ? `https://www.wowhead.com/${WOWHEAD_PATH}/item=${e.id}` : null;
+    const link = inner => href ? `<a href="${href}" target="_blank" rel="noopener">${inner}</a>` : inner;
+    const icon = e.icon ? `<img src="${escapeHtml(e.icon)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : "";
+    const row = rows.find(r => keyOf(r.friend) === e.key);
+    const who = `<b style="color:${CLASS_COLORS[e.className] || "var(--gold)"}">${escapeHtml(row ? firstName(row) : String(e.who || "").split(" ")[0])}</b>`
+      + (row?.friend.main ? `<span class="alt-tag" title="Alt">ALT</span>` : "");
+    const day = dayLabel(e.t);
+    const header = day !== lastDay ? `<li class="loot-day"><span>${day}</span></li>` : "";
+    lastDay = day;
+    const meta = [e.slotName && escapeHtml(e.slotName), e.ilvl && `ilvl ${escapeHtml(e.ilvl)}`, upgradeHtml(e)].filter(Boolean).join(`<i>·</i>`);
+    return `${header}<li class="loot-row">
+      ${link(`<span class="loot-icon q-${q}">${icon}</span>`)}
+      <div class="loot-text">
+        <div class="loot-line">${who} equipped ${link(`<span class="loot-name" style="color:${color}">[${escapeHtml(e.name)}]</span>`)}</div>
+        <div class="loot-meta">${meta}</div>
+      </div>
+      <time title="${new Date(e.t).toLocaleString("en-GB")}">${new Date(e.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</time>
+    </li>`;
+  }).join("");
+  panel.innerHTML = `<div class="panel-head"><h2>Loot feed</h2><small>Blue or better</small></div>
+    ${feed.length ? `<ul class="loot">${items}</ul>`
+      : `<div class="loot-empty">No new loot yet. When someone equips a blue or better item, it shows up here.</div>`}`;
+  panel.hidden = false;
+}
+
+// Hall of Fame: tongue-in-cheek awards from the character statistics. Banter, not a ranking.
+const ICON_URL = name => `https://wow.zamimg.com/images/wow/icons/large/${name}.jpg`;
+const stat = (r, name) => r.data.fun?.[name] || 0;
+const needGreed = r => `${stat(r, "need rolls made on loot")} : ${stat(r, "greed rolls made on loot")}`;
+const pveDeaths = r => Math.max(0, stat(r, "total deaths") - stat(r, "battleground deaths")); // deaths outside battlegrounds
+// low: true = the award goes to the lowest number (among people who have the stat at all).
+// fmt = how a number shows in the top-3 list (default: the plain number).
+const AWARDS = [
+  { icon: "inv_misc_fish_02", title: "Master Baiter", value: r => stat(r, "fish caught"), text: n => `${n} fish caught`, fmt: n => `${n} fish` },
+  { icon: "spell_holy_resurrection", title: "Spirit Healer's Favourite", value: r => pveDeaths(r), text: n => `${n} deaths outside battlegrounds`, fmt: n => `${n} deaths` },
+  // Need/Greed ratio (at least 5 rolls; 0 Greed counts as 1 so it doesn't divide by zero)
+  { icon: "inv_misc_coin_02", title: "Ninja Looter", value: r => { const need = stat(r, "need rolls made on loot"), greed = stat(r, "greed rolls made on loot"); return need + greed >= 5 ? need / Math.max(greed, 1) : 0; },
+    text: (n, r) => `${stat(r, "need rolls made on loot")} Need vs ${stat(r, "greed rolls made on loot")} Greed`, fmt: (n, r) => needGreed(r) },
+  { icon: "ability_rogue_sprint", title: "Commitment Issues", value: r => stat(r, "quests abandoned"), text: n => `${n} quests abandoned` },
+  { icon: "spell_magic_polymorphrabbit", title: "Bambi's Worst Nightmare", value: r => stat(r, "critters killed"), text: n => `${n} innocent critters` },
+  { icon: "spell_shadow_demonbreath", title: "Forgot to Breathe", value: r => stat(r, "deaths from drowning"), text: n => `drowned ${n}×` },
+  { icon: "spell_magic_featherfall", title: "Gravity Tester", value: r => stat(r, "deaths from falling"), text: n => `fell to their death ${n}×` },
+  { icon: "inv_misc_bone_humanskull_01", title: "Dungeon Floor Inspector", value: r => stat(r, "total deaths in 5-player dungeons"), text: n => `died ${n}× in dungeons` },
+  { icon: "spell_fire_flamebolt", title: "Burnt Toast", low: true, value: r => stat(r, "cooking skill"), text: n => `Cooking skill ${n}` },
+];
+
+function renderFame() {
+  const panel = $("fame");
+  const members = loaded().filter(r => r.data.fun);
+  if (members.length < 2) { panel.hidden = true; return; }
+  const tiles = AWARDS.map(a => {
+    const scored = members.map(r => [r, a.value(r)]).filter(([, v]) => v > 0)
+      .sort((x, y) => a.low ? x[1] - y[1] : y[1] - x[1]);
+    if (scored.length < (a.low ? 2 : 1)) return ""; // "lowest" needs someone to compare with
+    const best = scored[0][1];
+    const winners = scored.filter(([, v]) => v === best).map(([r]) => r);
+    if (scored.length > 1 && winners.length === scored.length) return ""; // everyone tied: no award
+    const names = winners.slice(0, 2).map(r => `<b style="color:${classColor(r)}">${escapeHtml(firstName(r))}</b>`).join(" & ")
+      + (winners.length > 2 ? ` <span class="more">+${winners.length - 2}</span>` : "");
+    // Top 3 with numbers, shown when hovering (or tapping) the tile. Ties share a place.
+    const fmt = a.fmt || String;
+    const top = scored.slice(0, 3).map(([r, v]) => `<li><span class="place">${scored.findIndex(([, x]) => x === v) + 1}.</span>
+        <b style="color:${classColor(r)}">${escapeHtml(firstName(r))}</b><span class="num">${escapeHtml(fmt(v, r))}</span></li>`).join("");
+    return `<li class="award" tabindex="0" aria-label="${escapeHtml(a.title)}: ${scored.slice(0, 3).map(([r, v]) => `${escapeHtml(firstName(r))} ${escapeHtml(fmt(v, r))}`).join(", ")}">
+      <img src="${ICON_URL(a.icon)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+      <div class="award-body">
+        <div class="award-title">${escapeHtml(a.title)}</div>
+        <div class="award-front">
+          <div class="award-who">${names}</div>
+          <div class="award-value">${escapeHtml(a.text(best, winners[0]))}</div>
+        </div>
+        <ol class="award-top">${top}</ol>
+      </div>
+    </li>`;
+  }).join("");
+  panel.innerHTML = `<div class="panel-head"><h2>Hall of Fame</h2><small>All in good fun</small></div><ul class="fame">${tiles}</ul>`;
+  panel.hidden = false;
+}
+
+// Legacy: Legacy Challenges done (one Legacy Point each), counted per Battle.net account. An alt
+// shares its main's account, so the two are one row on the leaderboard and show the same points.
+const LEGACY_REWARDS = [[15, "Replica Ironforge Air Rifle"], [25, "Spectral Bear Cub"], [40, "Spectral Bear Tabard"], [55, "Reins of the Spectral Bear"]];
+const LEGACY_TOTAL = 65;
+const CLASS_TIERS = [[25, "Novice"], [45, "Experienced"], [60, "Master"]];
+const CRAFT_TIERS = [[150, "Journeyman"], [225, "Expert"], [300, "Artisan"]];
+const CRAFTER = { Alchemy: "Alchemist", Blacksmithing: "Blacksmith", Enchanting: "Enchanter", Engineering: "Engineer", Leatherworking: "Leatherworker", Tailoring: "Tailor" };
+const SHIELD = `<svg class="shield" viewBox="0 0 16 18" aria-hidden="true"><path d="M8 1 2 3.2v5.1c0 4 2.6 6.9 6 8.7 3.4-1.8 6-4.7 6-8.7V3.2L8 1z"/></svg>`;
+const accountKey = r => (r.friend.main || r.friend.slug).toLowerCase();
+
+function legacyAccounts() {
+  const accounts = new Map();
+  for (const r of loaded()) {
+    const k = accountKey(r);
+    if (!accounts.has(k)) accounts.set(k, { key: k, members: [], done: new Map() });
+    const a = accounts.get(k);
+    a.members.push(r);
+    for (const c of r.data.legacy || []) a.done.set(c.name, c.group);
+  }
+  for (const a of accounts.values()) {
+    a.known = a.members.some(r => r.data.legacy); // false: no achievement data yet
+    // the main first (the one the alts point at), then by level
+    a.members.sort((x, y) => (accountKey(y) === y.friend.slug.toLowerCase()) - (accountKey(x) === x.friend.slug.toLowerCase()) || byLevel(x, y));
+    a.points = a.done.size;
+    a.next = legacyNext(a);
+  }
+  return [...accounts.values()].filter(a => a.known)
+    .sort((x, y) => y.points - x.points || firstName(x.members[0]).localeCompare(firstName(y.members[0])));
+}
+
+// The challenges an account is closest to: the next class level for each character and the next
+// skill mark for each crafting profession, nearest first.
+function legacyNext(a) {
+  const out = [];
+  for (const r of a.members) {
+    const cls = r.data.className;
+    const tier = CLASS_TIERS.find(([lvl, rank]) => !a.done.has(`${rank} ${cls}`));
+    if (tier && cls) out.push({ name: `${tier[1]} ${cls}`, who: r, have: r.data.level, need: tier[0], what: "level" });
+    for (const p of r.data.professions || []) {
+      if (!CRAFTER[p.name]) continue;
+      const t = CRAFT_TIERS.find(([skill, rank]) => !a.done.has(`${rank} ${CRAFTER[p.name]}`));
+      if (t) out.push({ name: `${t[1]} ${CRAFTER[p.name]}`, who: r, have: p.skill, need: t[0], what: p.name });
+    }
+  }
+  const seen = new Set();
+  return out.sort((x, y) => y.have / y.need - x.have / x.need)
+    .filter(n => !seen.has(n.name) && seen.add(n.name));
+}
+
+const nextReward = points => LEGACY_REWARDS.find(([n]) => n > points);
+const legacyTip = n => `${n.name}: ${escapeHtml(firstName(n.who))} ${n.what === "level" ? `is level ${n.have} of ${n.need}` : `has ${n.what} ${n.have} of ${n.need}`}`;
+
+function renderLegacy() {
+  const panel = $("legacy");
+  const accounts = legacyAccounts();
+  if (!accounts.length) { panel.hidden = true; return; }
+  const top = accounts[0].points;
+  const items = accounts.map((a, i) => {
+    const r = a.members[0];
+    const place = accounts.findIndex(x => x.points === a.points) + 1; // ties share a place
+    const reward = nextReward(a.points);
+    const from = [...LEGACY_REWARDS].reverse().find(([n]) => n <= a.points)?.[0] || 0;
+    const pct = reward ? ((a.points - from) / (reward[0] - from)) * 100 : 100;
+    const alts = a.members.slice(1).map(x => `<a href="#${memberId(x.friend)}" style="color:${classColor(x)}">${escapeHtml(firstName(x))}</a>`).join(", ");
+    const n = a.next[0];
+    return `<li class="lg-row${a.points === top && top > 0 ? " lead" : ""}">
+      <span class="lg-place">${place}</span>
+      <a class="lg-av" href="#${memberId(r.friend)}">${r.data.avatar ? `<img src="${escapeHtml(r.data.avatar)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : `<span class="blank"></span>`}</a>
+      <div class="lg-body">
+        <div class="lg-line">
+          <a class="lg-name" href="#${memberId(r.friend)}" style="color:${classColor(r)}">${escapeHtml(firstName(r))}</a>${alts ? `<span class="lg-alts">+ ${alts}</span>` : ""}
+          <span class="lg-bar" title="${reward ? `${a.points}/${reward[0]}: ${reward[0] - a.points} more for ${reward[1]}` : "Every reward unlocked"}"><i style="width:${pct}%"></i></span>
+          <span class="lg-pts" title="${a.points} Legacy Point${a.points === 1 ? "" : "s"}, shared by the whole account">${SHIELD}${a.points}</span>
+        </div>
+        ${n ? `<div class="lg-next" title="${legacyTip(n)}">Next: <b>${escapeHtml(n.name)}</b> <span>${n.have}/${n.need}</span></div>` : ""}
+      </div>
+    </li>`;
+  }).join("");
+  const goal = nextReward(0);
+  panel.innerHTML = `<div class="panel-head"><h2>Legacy</h2><small title="Bar = progress to the next reward. First one: ${goal[1]} at ${goal[0]} points.">${SHIELD} points per account</small></div>
+    <ol class="legacy" style="--rows:${Math.ceil(accounts.length / 2)}">${items}</ol>`;
+  panel.hidden = false;
+}
+
+// Card footer: the account's Legacy Points (none shown until there's at least one).
+function legacyBadgeHtml(r) {
+  const a = legacyAccounts().find(x => x.key === accountKey(r));
+  if (!a?.points) return "";
+  return `<span class="legacy-badge" title="${a.points} Legacy Point${a.points === 1 ? "" : "s"} (shared by the whole account)">${SHIELD}${a.points}</span>`;
+}
+
+// Expanded card: the challenges done and the nearest ones coming up.
+function legacyHtml(r) {
+  const a = legacyAccounts().find(x => x.key === accountKey(r));
+  if (!a) return "";
+  const shared = a.members.length > 1 ? ` · shared with ${a.members.filter(x => x !== r).map(x => escapeHtml(firstName(x))).join(", ")}` : "";
+  const done = [...a.done.keys()].sort().map(n => `<span class="chip done">${escapeHtml(n)}<small>✓</small></span>`).join("");
+  const next = a.next.slice(0, 4).map(n => `<span class="chip soon" title="${legacyTip(n)}">${escapeHtml(n.name)}<small>${n.have}/${n.need}</small></span>`).join("");
+  return `<div class="dsec">
+    <div class="log-head"><span>Legacy</span><small>${a.points} of ${LEGACY_TOTAL} points${shared}</small></div>
+    <div class="log-row"><span class="log-label">Done</span><div class="log-chips">${done || `<span class="log-none">None yet</span>`}</div></div>
+    ${next ? `<div class="log-row"><span class="log-label">Closest</span><div class="log-chips">${next}</div></div>` : ""}
+  </div>`;
+}
+
+function bestItemHtml(item) {
+  if (!item) return "";
+  const color = QUALITY_COLORS[item.quality] || "var(--text)";
+  // Wowhead's tooltip script (loaded at the bottom) shows the item tooltip when hovering this link.
+  const href = Number.isInteger(item.id) ? `https://www.wowhead.com/${WOWHEAD_PATH}/item=${item.id}` : null;
+  const icon = item.icon ? `<img src="${escapeHtml(item.icon)}" alt="" loading="lazy" onerror="this.style.display='none'">` : "";
+  const label = `<span style="color:${color}">${escapeHtml(item.name)}</span>`;
+  return `<div class="item">
+    <span class="item-label" title="Their highest-quality equipped item (ties go to the higher item level)">Best item</span>
+    ${href ? `<a class="item-link" href="${href}" target="_blank" rel="noopener">${icon}${label}</a>` : icon + label}
+    ${item.ilvl ? `<span class="ilvl">ilvl ${escapeHtml(item.ilvl)}</span>` : ""}
+  </div>`;
+}
+
+// Blizzard's image server now and then fails a request that works a second later. Retry every image
+// once before its own onerror fallback runs (stopping the event here keeps that fallback for the retry).
+document.addEventListener("error", e => {
+  const img = e.target;
+  if (img.tagName !== "IMG" || img.dataset.retried) return;
+  e.stopPropagation();
+  img.dataset.retried = "1";
+  setTimeout(() => { const u = new URL(img.src); u.searchParams.set("retry", "1"); img.src = u.href; }, 1500);
+}, true);
+
+// Main professions as tiny icon + skill level; the full name and cap show on hover.
+const PROF_RANKS = { 75: "Apprentice", 150: "Journeyman", 225: "Expert", 300: "Artisan" };
+function professionsHtml(profs) {
+  if (!profs?.length) return "";
+  return `<div class="profs">` + profs.map(p => {
+    const tip = `${p.name} ${p.skill}/${p.max}${PROF_RANKS[p.max] ? ` (${PROF_RANKS[p.max]})` : ""}`;
+    const icon = p.icon ? `<img src="${escapeHtml(p.icon)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+    return `<span class="prof${p.skill >= p.max ? " maxed" : ""}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}">${icon}${escapeHtml(p.skill)}</span>`;
+  }).join("") + `</div>`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+function render() {
+  if (rows.length && !rows.some(r => squadOf(r) === viewSquad)) viewSquad = squadNames()[0];
+  renderParty();
+  renderDungeons();
+  renderLoot();
+  renderFame();
+  renderLegacy();
+  const list = $("list");
+  if (!rows.length) { list.innerHTML = `<li class="frame empty">No adventurers yet.</li>`; return; }
+  // Everyone, sorted by level. Each bar gets its own squad's party mark (none for free squads).
+  const parties = Object.fromEntries(squadNames().map(s => [s, squadSyncs(s) ? partyLevel(squadMembers(s)) : null]));
+  list.innerHTML = [...rows].sort(byLevel).map(r => cardHtml(r, parties[squadOf(r)] ?? null)).join("");
+}
+
+// The main a character is an alt of (its row), and a main's alts (rows, highest level first).
+const mainOf = r => r.friend.main && rows.find(o => o.friend.slug.toLowerCase() === r.friend.main.toLowerCase());
+const altsOf = r => rows.filter(o => o.data && !o.data.error && o.friend.main?.toLowerCase() === r.friend.slug.toLowerCase())
+  .sort((a, b) => b.data.level - a.data.level);
+
+// "alt of Kama" next to an alt's name, linking to the main's card; a main gets "alt: Gunnar 12" instead.
+function altOfHtml(r) {
+  const slug = r.friend.main;
+  if (!slug) {
+    const alts = altsOf(r);
+    if (!alts.length) return "";
+    return ` <span class="alt-of">${alts.length > 1 ? "alts" : "alt"}: ${alts.map(a =>
+      `<a href="#${memberId(a.friend)}" style="color:${classColor(a)}" title="${escapeHtml(a.data.name)} · level ${a.data.level}">${escapeHtml(firstName(a))}</a> <span class="alt-lvl">${a.data.level}</span>`).join(", ")}</span>`;
+  }
+  const main = rows.find(o => o.friend.slug.toLowerCase() === slug.toLowerCase());
+  const label = main ? firstName(main) : slug.split("-")[0];
+  const who = main
+    ? `<a href="#${memberId(main.friend)}" style="color:${classColor(main)}">${escapeHtml(label)}</a>`
+    : `<b>${escapeHtml(label)}</b>`;
+  return ` <span class="alt-of">alt of ${who}</span>`;
+}
+
+function cardHtml(r, party) {
+    const d = r.data || {};
+    const name = escapeHtml(d.name || r.friend.slug.replace(/-/g, " "));
+    const id = memberId(r.friend);
+    if (!r.data) return `<li class="frame loading" id="${id}"><div class="portrait"><div class="blank"></div></div><div class="info"><span class="name">${name}</span><div class="meta">Summoning…</div></div></li>`;
+    if (d.error) return `<li class="frame error" id="${id}"><div class="portrait"><div class="blank"></div></div><div class="info"><a class="name" href="${armoryUrl(r.friend)}" target="_blank" rel="noopener">${name}</a><div class="meta">${d.error === "not_found" ? "Not on the armory yet" : "Couldn't reach the armory"}</div></div></li>`;
+    const color = classColor(r);
+    const gain = gainToday(d.history);
+    const pct = Math.min(100, (d.level / MAX_LEVEL) * 100);
+    const partyPct = party != null ? Math.min(100, (party / MAX_LEVEL) * 100) : null;
+    const open = openCard === id;
+    return `<li class="frame card${open ? " open" : ""}" id="${id}" data-card="${id}">
+      <div class="portrait">
+        ${d.avatar ? `<img src="${escapeHtml(d.avatar)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : `<div class="blank"><span class="initial" style="font-size:20px;color:${color}">${escapeHtml(firstName(r)[0])}</span></div>`}
+        <div class="lvl" title="Level ${d.level}">${d.level}</div>
+      </div>
+      <div class="info">
+        <a class="name" href="${armoryUrl(r.friend)}" target="_blank" rel="noopener" style="color:${color}">${name}</a>${altOfHtml(r)}
+        <div class="meta">${escapeHtml(d.race)} ${escapeHtml(d.className)}${d.guild && d.guild !== HOME_GUILD ? ` · &lt;${escapeHtml(d.guild)}&gt;` : ""}${d.lastLogin ? ` · <span class="nowrap">seen ${ago(d.lastLogin)}</span>` : ""}${d.source === "roster" ? ` · <span class="nowrap" title="Blizzard hasn't made a profile for this character yet, so only the guild roster's level and class are known. Gear, talents and dungeons show up once it exists.">from the guild roster</span>` : ""}</div>
+        ${bestItemHtml(d.bestItem)}
+        <div class="bar" title="Level ${d.level} of ${MAX_LEVEL}${party != null ? ` · gold line = party level ${party}` : ""}">
+          <div class="fill" style="width:${pct}%;background:${color}"></div>
+          ${partyPct != null ? `<div class="party-mark" style="left:${partyPct}%"></div>` : ""}
+          <div class="label">Level ${d.level} / ${MAX_LEVEL}</div>
+        </div>
+      </div>
+      <div class="side">
+        ${gain > 0 ? `<span class="today" title="Levels gained since midnight">+${gain} today</span>` : ""}
+      </div>
+      <div class="card-foot">
+        ${specFootHtml(d.talents)}
+        ${legacyBadgeHtml(r)}
+        ${professionsHtml(d.professions)}
+        <button type="button" class="log-toggle" aria-expanded="${open}" aria-controls="${id}-log" title="${open ? "Hide" : "Show"} ${escapeHtml(firstName(r))}'s talents and dungeons"><span class="lt-text">Details </span><span aria-hidden="true">${open ? "▴" : "▾"}</span></button>
+      </div>
+      ${open ? `<div class="dlog" id="${id}-log">${talentsHtml(r)}${dungeonLogHtml(r)}${legacyHtml(r)}</div>` : ""}
+    </li>`;
+}
+
+// Talent points per tree in the class's order, e.g. "8/0/5", plus the tree with the most points.
+function talentSummary(t) {
+  if (!t?.trees?.length) return null;
+  const pts = t.trees.map(x => x.points);
+  const total = pts.reduce((a, b) => a + b, 0);
+  const top = Math.max(...pts);
+  const leaders = t.trees.filter(x => x.points === top);
+  return {
+    split: pts.join("/"), total,
+    spec: !total ? "No talents yet" : leaders.length > 1 ? "Hybrid" : leaders[0].name,
+    tip: t.trees.map(x => `${x.name} ${x.points}`).join(" · "),
+  };
+}
+
+// First thing in the card's footer strip: "Balance 8/0/5" (nothing until a point is spent).
+function specFootHtml(t) {
+  const s = talentSummary(t);
+  if (!s || !s.total) return "";
+  return `<span class="spec" title="${escapeHtml(s.tip)}">${escapeHtml(s.spec)} <b>${s.split}</b></span>`;
+}
+
+// The group's own guild goes without saying, so the card only names a guild when it's a different one.
+const HOME_GUILD = "Klippan Forever";
+
+// Talent points open up at level 10, one per level.
+const talentPointsAt = level => Math.max(0, level - 9);
+
+// Expanded card: the talents picked in each tree (hover a talent for its tooltip text).
+function talentsHtml(r) {
+  const t = r.data.talents, s = talentSummary(t);
+  if (!s) return "";
+  const unspent = talentPointsAt(r.data.level) - s.total;
+  const cols = t.trees.map(tree => `<div class="tree${tree.points ? "" : " empty"}">
+      <div class="tree-head"><span>${escapeHtml(tree.name)}</span><b>${tree.points}</b></div>
+      ${tree.talents.length ? `<ul>${tree.talents.map(x => `<li title="${escapeHtml(`${x.name} (rank ${x.rank})${x.desc ? `\n${x.desc}` : ""}`)}">
+          ${x.icon ? `<img src="${escapeHtml(x.icon)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : `<span class="noicon"></span>`}
+          <span class="tname">${escapeHtml(x.name)}</span><span class="trank">${escapeHtml(x.rank)}</span></li>`).join("")}</ul>`
+        : `<div class="log-none">No points</div>`}
+    </div>`).join("");
+  return `<div class="dsec">
+    <div class="log-head"><span>${escapeHtml(firstName(r))}'s talents</span><small>${s.split}${unspent > 0 ? ` · <em class="unspent">${unspent} unspent</em>` : ""}</small></div>
+    <div class="trees">${cols}</div>
+  </div>`;
+}
+
+// A character's own dungeon log, judged by their level rather than the party's: what they've
+// cleared, what's open for them now, what's coming up, and what they outleveled without doing.
+function dungeonLogHtml(r, id) {
+  const d = r.data;
+  if (!d.dungeons) return `<div class="dsec"><div class="log-empty">No dungeon data for ${escapeHtml(firstName(r))} yet.</div></div>`;
+  const lvl = d.level;
+  const clears = realClears(r);
+  const known = DUNGEONS.map(x => ({ ...x, cs: clears.filter(c => matches(c, x)) }));
+  const extras = clears.filter(c => !DUNGEONS.some(x => matches(c, x))).map(c => ({ name: c.name, cs: [c] }));
+  const enemy = x => x.territory && x.territory !== d.faction;
+  const done = [...known.filter(x => x.cs.length), ...extras];
+  const openNow = known.filter(x => !x.cs.length && lvl >= x.min && lvl <= x.max);
+  const soon = known.filter(x => x.min > lvl && !enemy(x)).slice(0, 3);
+  const skipped = known.filter(x => !x.cs.length && lvl > x.max && !enemy(x));
+
+  const chip = (cls, x, extra, tip) => `<span class="chip ${cls}"${tip ? ` title="${escapeHtml(tip)}"` : ""}>${escapeHtml(x.name)}${extra ? `<small>${extra}</small>` : ""}</span>`;
+  const doneChips = done.map(x => {
+    const kills = x.cs.reduce((n, c) => n + c.kills, 0);
+    const last = Math.max(...x.cs.map(c => c.last || 0));
+    return chip("done", x, kills > 1 ? `×${kills}` : "", last ? `Last cleared ${shortDate(last)}` : "");
+  });
+  const openChips = openNow.map(x => chip("open", x, `${x.min}–${x.max}${enemy(x) ? ` · ${x.territory === "HORDE" ? "Horde" : "Alliance"} area` : ""}`, `Right level for ${firstName(r)} (${x.min}–${x.max}) and not cleared yet`));
+  const soonChips = soon.map(x => chip("soon", x, `at ${x.min}`, `Opens up at level ${x.min}`));
+  const skipChips = skipped.map(x => chip("skip", x, "", `Outleveled (${x.min}–${x.max}) without a clear`));
+  const row = (label, chips, empty) => `<div class="log-row"><span class="log-label">${label}</span><div class="log-chips">${chips.length ? chips.join("") : `<span class="log-none">${empty}</span>`}</div></div>`;
+
+  return `<div class="dsec">
+    <div class="log-head"><span>${escapeHtml(firstName(r))}'s dungeons</span><small>${done.length} cleared${d.dungeons.entered != null ? ` · ${d.dungeons.entered} entered` : ""}</small></div>
+    ${row("✓ Cleared", doneChips, "Nothing yet")}
+    ${row("○ Open now", openChips, "Nothing open at this level")}
+    ${row("→ Coming up", soonChips, "That's all of them")}
+    ${skipped.length ? row("✗ Skipped", skipChips, "") : ""}
+  </div>`;
+}
+
+async function loadCharacter(row, refresh) {
+  const q = new URLSearchParams({ ...row.friend, ...(refresh ? { refresh: "1" } : {}) });
+  try {
+    row.data = await fetch(`/api/character?${q}`).then(r => r.json());
+  } catch {
+    row.data = { error: "unreachable" };
+  }
+  render();
+}
+
+async function loadAll(refresh = false) {
+  $("refresh").disabled = true;
+  $("status").textContent = refresh ? "Fetching fresh data…" : "Loading…";
+  await Promise.all(rows.map(r => loadCharacter(r, refresh)));
+  LOOT = await fetch("/api/loot").then(r => r.json()).catch(() => LOOT);
+  render();
+  $("refresh").disabled = false;
+  $("status").textContent = `${rows.length} ${rows.length === 1 ? "adventurer" : "adventurers"} · updated ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+async function loadFriends() {
+  const friends = await fetch("/api/friends").then(r => r.json());
+  rows = friends.map(f => rows.find(r => keyOf(r.friend) === keyOf(f)) || { friend: f, data: null });
+  render();
+}
+
+// Published site: build.py writes data.json next to this page (refreshed on a schedule by GitHub Actions).
+// Local server: no data.json, so the page asks the server's /api instead.
+async function loadStatic() {
+  const res = await fetch(`data.json?t=${Date.now()}`, { cache: "no-store" }).catch(() => null);
+  if (!res?.ok) return false;
+  const site = await res.json();
+  rows = site.members.map(m => ({ friend: m.friend, data: m.data }));
+  LOOT = site.loot || [];
+  render();
+  const stamp = () => { $("status").textContent = `${rows.length} adventurers · last change ${ago(site.generated)}`; };
+  stamp();
+  clearInterval(loadStatic.timer);
+  loadStatic.timer = setInterval(stamp, 60 * 1000);
+  return true;
+}
+
+// Clicking a card (anywhere but its links) opens or closes its dungeon log.
+function toggleCard(id) {
+  openCard = openCard === id ? null : id;
+  history.replaceState(null, "", openCard ? `#${openCard}` : location.pathname + location.search);
+  render();
+}
+$("list").addEventListener("click", e => {
+  const card = e.target.closest("li.card");
+  if (!card || (e.target.closest("a, .dlog") && !e.target.closest(".log-toggle"))) return;
+  if (getSelection().toString()) return; // selecting text isn't a click
+  toggleCard(card.dataset.card);
+});
+// A link to a card (#m-kama-moonbonk: level track, dungeon grid, "alt of", shared links) opens its log.
+function openFromHash() {
+  const id = decodeURIComponent(location.hash.slice(1));
+  const r = rows.find(x => memberId(x.friend) === id);
+  if (!r) return;
+  openCard = id;
+  render();
+  requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+}
+addEventListener("hashchange", openFromHash);
+
+$("dungeons").addEventListener("click", e => {
+  const b = e.target.closest("button[data-squad]");
+  if (b && b.dataset.squad !== viewSquad) setSquad(b.dataset.squad);
+});
+// Hovering (or focusing) a portrait that has a main/alts on the track lights up that family and draws
+// a gold arc from the main to each alt.
+function showFamily(dot) {
+  const track = dot?.closest(".track");
+  const fam = dot?.dataset.family;
+  if (!track || !fam) return;
+  const area = track.querySelector(".track-area");
+  const dots = [...area.querySelectorAll("a.dot")].filter(d => d.dataset.family === fam);
+  track.classList.add("fam-on");
+  dots.forEach(d => d.classList.add("hl"));
+  const box = area.getBoundingClientRect();
+  const top = d => { const b = d.getBoundingClientRect(); return [b.left + b.width / 2 - box.left, b.top - box.top]; };
+  const hub = dots.find(d => !d.classList.contains("alt")) || dots[0];
+  const [hx, hy] = top(hub);
+  area.querySelector(".fam-arcs").innerHTML = dots.filter(d => d !== hub).map(d => {
+    const [x, y] = top(d);
+    const lift = Math.min(hy, y) - 14 - Math.min(40, Math.abs(x - hx) / 8);
+    return `<path d="M${hx},${hy - 2} Q${(hx + x) / 2},${lift} ${x},${y - 2}"/>`;
+  }).join("");
+}
+function hideFamily(track) {
+  if (!track?.classList.contains("fam-on")) return;
+  track.classList.remove("fam-on");
+  track.querySelectorAll(".dot.hl").forEach(d => d.classList.remove("hl"));
+  track.querySelector(".fam-arcs").innerHTML = "";
+}
+for (const [on, off] of [["mouseover", "mouseout"], ["focusin", "focusout"]]) {
+  $("party").addEventListener(on, e => { const d = e.target.closest("a.dot[data-family]"); if (d) showFamily(d); });
+  $("party").addEventListener(off, e => {
+    const d = e.target.closest("a.dot[data-family]");
+    if (d && !d.contains(e.relatedTarget)) hideFamily(d.closest(".track"));
+  });
+}
+
+
+async function start() {
+  fetch("dungeons.json").then(r => r.json()).then(d => { DUNGEONS = d.dungeons || []; render(); }).catch(() => {});
+  if (await loadStatic()) {
+    openFromHash();
+    $("refresh").hidden = true;
+    setInterval(loadStatic, 10 * 60 * 1000); // pick up each new build while the tab is open
+    return;
+  }
+  $("refresh").addEventListener("click", () => loadAll(true));
+  await loadFriends();
+  loadAll().then(openFromHash);
+  setInterval(() => loadAll(), 10 * 60 * 1000); // quietly re-check every 10 minutes while the tab is open
+}
+start();
+</script>
+<script>const whTooltips = { colorLinks: false, iconizeLinks: false, renameLinks: false };</script>
+<script src="https://wow.zamimg.com/js/tooltips.js"></script>
+</body>
+</html>
